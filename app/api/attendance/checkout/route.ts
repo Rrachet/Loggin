@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { distanceMeters } from "@/lib/qr";
 
+function workDate(timeZone: string) { return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
+
 export async function POST(request: Request) {
   const accessToken = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!accessToken) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -16,14 +18,18 @@ export async function POST(request: Request) {
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const { data: profile } = await admin.from("profiles").select("id,company_id,office_id,active").eq("id", user.id).single();
   if (!profile?.active || !profile.office_id) return NextResponse.json({ error: "No active office is assigned" }, { status: 400 });
-  const { data: office } = await admin.from("offices").select("id,name,latitude,longitude,geofence_radius_m,geofence_enabled").eq("id", profile.office_id).single();
+  const [{ data: office }, { data: company }] = await Promise.all([
+    admin.from("offices").select("id,name,latitude,longitude,geofence_radius_m,geofence_enabled").eq("id", profile.office_id).single(),
+    admin.from("companies").select("timezone").eq("id", profile.company_id).single(),
+  ]);
   if (!office) return NextResponse.json({ error: "Office not found" }, { status: 404 });
   if (office.geofence_enabled) {
     if (office.latitude == null || office.longitude == null) return NextResponse.json({ error: "Office location is not configured" }, { status: 400 });
     const meters = distanceMeters(latitude, longitude, office.latitude, office.longitude);
     if (meters > (office.geofence_radius_m ?? 150)) return NextResponse.json({ error: `You are about ${Math.round(meters)}m away. Check out from within ${office.geofence_radius_m ?? 150}m of ${office.name}.` }, { status: 403 });
   }
-  const { data: record } = await admin.from("attendance").select("id,check_in_at,check_out_at").eq("employee_id", user.id).eq("work_date", new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date())).single();
+  const date = workDate(company?.timezone || "Asia/Kolkata");
+  const { data: record } = await admin.from("attendance").select("id,check_in_at,check_out_at").eq("employee_id", user.id).eq("work_date", date).single();
   if (!record?.check_in_at) return NextResponse.json({ error: "No check-in found for today" }, { status: 400 });
   if (record.check_out_at) return NextResponse.json({ error: "Attendance is already closed" }, { status: 400 });
   const now = new Date();
