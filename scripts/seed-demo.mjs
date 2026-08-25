@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 if (!url || !serviceKey) throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env.local');
 
 const supabase = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -10,20 +10,20 @@ const password = process.env.DEMO_PASSWORD || 'LogginDemo123!';
 const companyName = 'Loggin Demo Company';
 
 async function user(email, fullName, role, companyId, officeId) {
-  const { data: existing } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const { data: existing, error: listError } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (listError) throw listError;
   const found = existing.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
   let id = found?.id;
   if (!id) {
-    const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true });
+    const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { demo: true } });
     if (error) throw error;
     id = data.user.id;
   } else {
-    const { error } = await supabase.auth.admin.updateUserById(id, { password, email_confirm: true });
+    const { error } = await supabase.auth.admin.updateUserById(id, { password, email_confirm: true, user_metadata: { demo: true } });
     if (error) throw error;
   }
   const { error } = await supabase.from('profiles').upsert({ id, company_id: companyId, office_id: officeId, full_name: fullName, role, active: true }, { onConflict: 'id' });
   if (error) throw error;
-  return id;
 }
 
 const { data: company, error: companyError } = await supabase.from('companies').upsert({ name: companyName, email_domain: 'loggin.test' }, { onConflict: 'name' }).select().single();
@@ -39,7 +39,7 @@ async function office(name, address) {
 
 const hyd = await office('Hyderabad Office', 'Hyderabad');
 const blr = await office('Bangalore Office', 'Bangalore');
-const mum = await office('Mumbai Office', 'Mumbai');
+await office('Mumbai Office', 'Mumbai');
 
 const accounts = [
   ['founder@loggin.test', 'Loggin Founder', 'founder', hyd.id],
@@ -51,13 +51,17 @@ const accounts = [
 
 for (const [email, name, role, officeId] of accounts) await user(email, name, role, company.id, officeId);
 
-const { data: employees } = await supabase.from('profiles').select('id,office_id').eq('company_id', company.id).in('role', ['employee','manager']);
+const { data: employees, error: employeeError } = await supabase.from('profiles').select('id,office_id').eq('company_id', company.id).in('role', ['employee','manager']);
+if (employeeError) throw employeeError;
 const today = new Date().toISOString().slice(0, 10);
 for (const e of employees ?? []) {
-  if (e.office_id === hyd.id) await supabase.from('attendance').upsert({ employee_id: e.id, office_id: e.office_id, work_date: today, check_in_at: new Date().toISOString(), status: 'present', check_in_method: 'seed' }, { onConflict: 'employee_id,work_date' });
+  if (e.office_id === hyd.id) {
+    const { error } = await supabase.from('attendance').upsert({ employee_id: e.id, office_id: e.office_id, work_date: today, check_in_at: new Date().toISOString(), status: 'present', check_in_method: 'seed' }, { onConflict: 'employee_id,work_date' });
+    if (error) throw error;
+  }
 }
 
-console.log('\nLoggin demo environment ready.');
+console.log('\nLoggin local demo environment ready.');
 console.log(`Company: ${companyName}`);
 console.log(`Password for all demo users: ${password}`);
 for (const [email, name, role] of accounts) console.log(`${role.padEnd(8)} ${email}  (${name})`);
