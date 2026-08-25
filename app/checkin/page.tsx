@@ -52,12 +52,13 @@ export default function CheckinPage() {
   }
 
   async function checkIn(code = payload) {
-    if (!code || !supabase) return;
+    const client = supabase;
+    if (!code || !client) { setMessage("Supabase is not configured. Check your local environment."); return; }
     if (!navigator.geolocation) { setMessage("Location services are required for secure check-in."); return; }
     setBusy(true);
     navigator.geolocation.getCurrentPosition(async position => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { window.location.href = "/"; return; }
+      const { data: { session } } = await client.auth.getSession();
+      if (!session) { setBusy(false); window.location.href = "/"; return; }
       const response = await fetch("/api/attendance/checkin", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ ...code, latitude: position.coords.latitude, longitude: position.coords.longitude }) });
       const json = await response.json();
       if (!response.ok) setMessage(json.error || "Check-in failed"); else { setDone(true); setMessage("You’re checked in. Have a good day."); }
@@ -66,10 +67,11 @@ export default function CheckinPage() {
   }
 
   async function checkout() {
-    if (!supabase || !navigator.geolocation) return;
+    const client = supabase;
+    if (!client || !navigator.geolocation) return;
     setBusy(true); setMessage("Checking your location…");
     navigator.geolocation.getCurrentPosition(async position => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await client.auth.getSession();
       const response = await fetch("/api/attendance/checkout", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` }, body: JSON.stringify({ latitude: position.coords.latitude, longitude: position.coords.longitude }) });
       const json = await response.json();
       setMessage(response.ok ? "You’re checked out. Day complete." : (json.error || "Check-out failed")); setBusy(false);
