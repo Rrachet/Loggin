@@ -15,7 +15,8 @@ export async function POST(request: Request) {
   if(!email||!fullName||!officeId) return NextResponse.json({error:"Email, name and office are required"},{status:400});
   const {data:office}=await admin.from("offices").select("id,company_id").eq("id",officeId).single();
   if(!office||office.company_id!==actor.company_id) return NextResponse.json({error:"Invalid office"},{status:400});
-  const {data:invited,error:inviteError}=await admin.auth.admin.inviteUserByEmail(email,{data:{full_name:fullName,company_id:actor.company_id,office_id:officeId,role:"employee",invited:true}});
+  const origin=new URL(request.url).origin;
+  const {data:invited,error:inviteError}=await admin.auth.admin.inviteUserByEmail(email,{redirectTo:`${origin}/set-password`,data:{full_name:fullName,company_id:actor.company_id,office_id:officeId,role:"employee",invited:true}});
   if(inviteError||!invited.user) return NextResponse.json({error:inviteError?.message??"Unable to invite employee"},{status:400});
   const {error:profileError}=await admin.from("profiles").insert({id:invited.user.id,company_id:actor.company_id,office_id:officeId,full_name:fullName,employee_id:employeeId??null,department:department??null,designation:designation??null,role:"employee"});
   if(profileError) return NextResponse.json({error:profileError.message},{status:400});
