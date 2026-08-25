@@ -1,0 +1,3 @@
+-- Intentionally no SQL seed is provided.
+-- Demo users must be created through Supabase Auth using scripts/seed-demo.mjs.
+-- This keeps auth identities and profile records consistent.
