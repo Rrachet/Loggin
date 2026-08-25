@@ -4,87 +4,88 @@
 
 Founder-first attendance for modern teams.
 
-## What is working
-
-- Work-email/password founder authentication
-- Founder company onboarding
-- First office creation
-- Multiple offices from the founder dashboard
-- Employee invitation through company work email
-- Employee account/profile tied to an office
-- Role-aware founder/admin vs employee experience
-- Live daily attendance records in Postgres
-- Manual check-in / check-out persistence
-- Late detection using office start time + grace period
-- Founder dashboard with present, late and absent counts
-- Office-level presence pulse
-- Attendance activity feed
-- Row Level Security foundations
-- **Signed daily office QR codes**
-- **Browser camera QR scanning**
-- **Office geofence verification before check-in**
-- **Geofence verification before check-out**
-- **Server-side distance calculation and location capture**
-
-## Secure attendance flow
-
-`Founder sets office location → Founder displays daily QR → Employee scans QR → Browser sends live location → Server verifies QR + office + geofence → Attendance recorded`
-
-The QR token is signed server-side and changes every day. A screenshot of yesterday's code cannot be used today. Location is checked server-side against the office coordinates and configured radius.
-
-## Product architecture
-
-`Company → Offices → Employees → Attendance`
-
-Roles:
-
-- `founder` — full company control
-- `admin` — HR/operations control
-- `manager` — team-level visibility
-- `employee` — own attendance and requests
-
-## Run locally
+## Local development
 
 ```bash
 npm install
 cp .env.example .env.local
+npm run seed:demo
 npm run dev
 ```
 
-Add these Supabase values to `.env.local`:
+Open `http://localhost:3000`.
+
+### Local demo accounts
+
+The demo seed creates **confirmed Supabase Auth users**, so these accounts do not require an email inbox or email verification:
+
+| Role | Email | Password |
+|---|---|---|
+| Founder | `founder@loggin.test` | `LogginDemo123!` |
+| Admin | `admin@loggin.test` | `LogginDemo123!` |
+| Manager | `manager@loggin.test` | `LogginDemo123!` |
+| Employee | `employee@loggin.test` | `LogginDemo123!` |
+| Employee | `employee2@loggin.test` | `LogginDemo123!` |
+
+These are local/demo identities. `loggin.test` is intentionally not a real mailbox. Do **not** use these credentials in production.
+
+The seed command requires `SUPABASE_SERVICE_ROLE_KEY` and therefore must only be run locally or in a trusted server environment.
+
+## Supabase setup
+
+Add the project values to `.env.local`:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 QR_SIGNING_SECRET=
+DEMO_PASSWORD=LogginDemo123!
 ```
 
-Run `supabase/schema.sql` in the Supabase SQL editor before testing the app. Then run `supabase/qr_geofence.sql` to add the QR/geofence settings. The service-role key and QR signing secret are server-only and must never be exposed to the browser.
+Run `supabase/schema.sql` in the Supabase SQL editor before testing the app. Then run `supabase/qr_geofence.sql` for QR/geofence functionality.
 
-### Founder QR setup
+Never expose `SUPABASE_SERVICE_ROLE_KEY` or `QR_SIGNING_SECRET` to the browser or commit them to Git.
 
-Open `/office-qr` while signed in as a founder/admin.
+## Product
 
-1. Select an office.
-2. Stand at the physical office location.
-3. Click **Set office location from this device**.
-4. Click **Generate today's QR**.
-5. Display the QR on a reception screen, tablet or monitor.
+- Work-email/password authentication
+- Founder company onboarding
+- Multiple offices
+- Employee profiles tied to offices
+- Founder/admin/manager/employee roles
+- Daily attendance records
+- Manual check-in/check-out
+- Late detection using office start time + grace period
+- Founder dashboard with present, late and absent counts
+- Office-level presence pulse
+- Attendance activity feed
+- Row Level Security foundations
+- Signed daily office QR codes
+- Browser camera QR scanning
+- Office geofence verification
+- Server-side distance calculation and location capture
 
-### Employee check-in
+### Secure attendance flow
 
-Open `/checkin` while signed in as an employee.
+`Founder sets office location → Founder displays daily QR → Employee scans QR → Browser sends live location → Server verifies QR + office + geofence → Attendance recorded`
 
-1. Allow camera access.
-2. Scan the office QR.
-3. Allow location access.
-4. Loggin verifies the signed QR and geofence.
-5. Attendance is recorded as `qr_geofence`.
+The QR token is signed server-side and changes every day. Location is checked server-side against the office coordinates and configured radius.
 
-If the browser does not support native QR scanning, the check-in page also supports pasting the QR payload for testing.
+## Roles
 
-For employee invitations, Supabase Auth email delivery/SMTP and the correct redirect URL need to be configured in the Supabase dashboard.
+- `founder` — full company control
+- `admin` — HR/operations control
+- `manager` — team-level visibility
+- `employee` — own attendance and requests
+
+## QR check-in
+
+Open `/office-qr` as a founder/admin to configure an office and display its daily QR.
+
+Open `/checkin` as an employee to scan the QR and complete the geofence check.
+
+For production employee invitations, configure Supabase Auth email delivery/SMTP and the correct redirect URL. Local demo users bypass email verification by design.
 
 ## Next product slices
 
