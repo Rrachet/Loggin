@@ -27,12 +27,12 @@ export async function POST(request: Request) {
   const [{ data: profile }, { data: office }, { data: company }] = await Promise.all([
     admin.from("profiles").select("id,company_id,office_id,active,role").eq("id", user.id).single(),
     admin.from("offices").select("id,company_id,name,latitude,longitude,geofence_radius_m,geofence_enabled,qr_enabled,work_start,grace_minutes").eq("id", officeId).single(),
-    admin.from("companies").select("id,timezone").maybeSingle(),
+    admin.from("companies").select("id,timezone").eq("id", (await admin.from("profiles").select("company_id").eq("id", user.id).single()).data?.company_id ?? "").maybeSingle(),
   ]);
   if (!profile?.active || profile.office_id !== officeId) return NextResponse.json({ error: "This QR code belongs to a different office" }, { status: 403 });
   if (!office || office.company_id !== profile.company_id || !office.qr_enabled) return NextResponse.json({ error: "Invalid office QR" }, { status: 400 });
   if (!verifyQrToken(officeId, qrDate, token)) return NextResponse.json({ error: "QR code expired or invalid" }, { status: 400 });
-  const tz = company?.id === profile.company_id ? company.timezone : "Asia/Kolkata";
+  const tz = company?.timezone || "Asia/Kolkata";
   if (qrDate !== workDate(tz)) return NextResponse.json({ error: "This QR code is no longer valid" }, { status: 400 });
   if (office.geofence_enabled) {
     if (office.latitude == null || office.longitude == null) return NextResponse.json({ error: "This office has not been geolocated yet" }, { status: 400 });
@@ -42,7 +42,10 @@ export async function POST(request: Request) {
   const now = new Date();
   const date = workDate(tz);
   const [h, m] = String(office.work_start).slice(0, 5).split(":").map(Number);
-  const late = now.getHours() * 60 + now.getMinutes() > h * 60 + m + (office.grace_minutes ?? 15);
+  const localParts = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(now);
+  const hour = Number(localParts.find(p => p.type === "hour")?.value ?? now.getHours());
+  const minute = Number(localParts.find(p => p.type === "minute")?.value ?? now.getMinutes());
+  const late = hour * 60 + minute > h * 60 + m + (office.grace_minutes ?? 15);
   const { data, error } = await admin.from("attendance").insert({ employee_id: user.id, office_id: officeId, work_date: date, check_in_at: now.toISOString(), status: late ? "late" : "present", check_in_method: "qr_geofence", check_in_latitude: latitude, check_in_longitude: longitude }).select().single();
   if (error) return NextResponse.json({ error: error.code === "23505" ? "Today's attendance is already recorded" : error.message }, { status: 400 });
   return NextResponse.json({ ok: true, attendance: data });
