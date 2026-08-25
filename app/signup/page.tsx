@@ -4,73 +4,13 @@ import { FormEvent, useState } from "react";
 import { supabase, supabaseConfigError } from "@/lib/supabase";
 
 export default function SignupPage() {
-  const [fullName, setFullName] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
+  const [fullName, setFullName] = useState(""); const [companyName, setCompanyName] = useState(""); const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [message, setMessage] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
   async function signUp(event: FormEvent) {
-    event.preventDefault();
-    setError("");
-    setMessage("");
-    if (!supabase) { setError(supabaseConfigError ?? "Supabase is not configured."); return; }
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
-    setLoading(true);
-
-    const { data, error: authError } = await supabase.auth.signUp({
-      email: email.trim().toLowerCase(),
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
-        data: { full_name: fullName.trim(), company_name: companyName.trim() },
-      },
-    });
-
-    if (authError) {
-      setError(authError.message);
-      setLoading(false);
-      return;
-    }
-
-    if (data.session) {
-      window.location.href = "/dashboard";
-      return;
-    }
-
-    setMessage("Account created. Check your email to confirm your account, then sign in.");
-    setLoading(false);
+    event.preventDefault(); setError(""); setMessage(""); if (!supabase) { setError(supabaseConfigError ?? "Supabase is not configured."); return; } if (password.length < 8) { setError("Password must be at least 8 characters."); return; } setLoading(true);
+    const { data, error: authError } = await supabase.auth.signUp({ email: email.trim().toLowerCase(), password, options: { emailRedirectTo: `${window.location.origin}/auth/callback`, data: { full_name: fullName.trim(), company_name: companyName.trim() } } });
+    if (authError) { setError(authError.message); setLoading(false); return; }
+    if (data.session) { await fetch("/api/auth/bootstrap", { method: "POST", headers: { Authorization: `Bearer ${data.session.access_token}` } }); window.location.href = "/dashboard"; return; }
+    setMessage("Account created. Check your email and click Confirm account. You’ll be taken back to Loggin automatically."); setLoading(false);
   }
-
-  return (
-    <main className="min-h-screen bg-[#f7f7f5] p-6">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-5xl items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-[2rem] border border-black/10 bg-white shadow-sm lg:grid-cols-[.9fr_1.1fr]">
-          <section className="bg-[#173b32] p-8 text-white lg:p-12">
-            <div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-white/10 font-bold">L</div><span className="text-xl font-semibold">loggin</span></div>
-            <div className="mt-20 max-w-sm">
-              <p className="text-sm font-medium text-white/60">Attendance, without the admin headache.</p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em] lg:text-5xl">Create your workspace.</h1>
-              <p className="mt-5 text-sm leading-7 text-white/65">Start as the founder. Add your office, bring in your team, and let Loggin handle daily attendance.</p>
-            </div>
-          </section>
-          <section className="p-8 lg:p-12">
-            <div className="flex items-center justify-between"><div><p className="text-sm text-[#6b6b6b]">New to Loggin?</p><h2 className="mt-1 text-2xl font-semibold">Create account</h2></div><a href="/" className="text-sm font-medium text-[#173b32]">Sign in</a></div>
-            <form onSubmit={signUp} className="mt-8 space-y-4">
-              <label className="block text-sm font-medium">Your name<input value={fullName} onChange={e=>setFullName(e.target.value)} required autoComplete="name" className="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#173b32]" placeholder="Your name" /></label>
-              <label className="block text-sm font-medium">Company name<input value={companyName} onChange={e=>setCompanyName(e.target.value)} required autoComplete="organization" className="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#173b32]" placeholder="Your company" /></label>
-              <label className="block text-sm font-medium">Work email<input value={email} onChange={e=>setEmail(e.target.value)} required type="email" autoComplete="email" className="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#173b32]" placeholder="you@company.com" /></label>
-              <label className="block text-sm font-medium">Password<input value={password} onChange={e=>setPassword(e.target.value)} required type="password" minLength={8} autoComplete="new-password" className="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#173b32]" placeholder="At least 8 characters" /></label>
-              {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-              {message && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</div>}
-              <button disabled={loading} className="w-full rounded-xl bg-[#173b32] py-3.5 text-sm font-semibold text-white disabled:opacity-50">{loading ? "Creating account…" : "Create account"}</button>
-            </form>
-            <p className="mt-6 text-xs leading-5 text-[#777]">Your account starts as the founder of this workspace. Add your office and employees from the dashboard.</p>
-          </section>
-        </div>
-      </div>
-    </main>
-  );
+  return <main className="min-h-screen bg-[#f7f7f5] p-6"><div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-5xl items-center justify-center"><div className="grid w-full overflow-hidden rounded-[2rem] border border-black/10 bg-white shadow-sm lg:grid-cols-[.9fr_1.1fr]"><section className="bg-[#173b32] p-8 text-white lg:p-12"><div className="flex items-center gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-white/10 font-bold">L</div><span className="text-xl font-semibold">loggin</span></div><div className="mt-20 max-w-sm"><p className="text-sm font-medium text-white/60">Attendance, without the admin headache.</p><h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em] lg:text-5xl">Create your workspace.</h1><p className="mt-5 text-sm leading-7 text-white/65">Start as the founder. Add your office, bring in your team, and let Loggin handle daily attendance.</p></div></section><section className="p-8 lg:p-12"><div className="flex items-center justify-between"><div><p className="text-sm text-[#6b6b6b]">New to Loggin?</p><h2 className="mt-1 text-2xl font-semibold">Create account</h2></div><a href="/" className="text-sm font-medium text-[#173b32]">Sign in</a></div><form onSubmit={signUp} className="mt-8 space-y-4"><label className="block text-sm font-medium">Your name<input value={fullName} onChange={e=>setFullName(e.target.value)} required autoComplete="name" className="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#173b32]" placeholder="Your name" /></label><label className="block text-sm font-medium">Company name<input value={companyName} onChange={e=>setCompanyName(e.target.value)} required autoComplete="organization" className="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#173b32]" placeholder="Your company" /></label><label className="block text-sm font-medium">Work email<input value={email} onChange={e=>setEmail(e.target.value)} required type="email" autoComplete="email" className="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#173b32]" placeholder="you@company.com" /></label><label className="block text-sm font-medium">Password<input value={password} onChange={e=>setPassword(e.target.value)} required type="password" minLength={8} autoComplete="new-password" className="mt-2 w-full rounded-xl border border-black/10 px-4 py-3 outline-none focus:border-[#173b32]" placeholder="At least 8 characters" /></label>{error&&<div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}{message&&<div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</div>}<button disabled={loading} className="w-full rounded-xl bg-[#173b32] py-3.5 text-sm font-semibold text-white disabled:opacity-50">{loading?"Creating account…":"Create account"}</button></form><p className="mt-6 text-xs leading-5 text-[#777]">Your account starts as the founder of this workspace. Add your office and employees from the dashboard.</p></section></div></div></main>;
 }
