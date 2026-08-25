@@ -1,13 +1,11 @@
 {
   "name": "loggin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "seed:demo": "node scripts/seed-demo.mjs",
-    "lint": "next lint"
+    "start": "next start"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.56.0",
