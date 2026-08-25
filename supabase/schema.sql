@@ -90,3 +90,24 @@ create index profiles_company_idx on public.profiles(company_id);
 create index profiles_office_idx on public.profiles(office_id);
 create index attendance_employee_date_idx on public.attendance(employee_id, work_date desc);
 create index attendance_office_date_idx on public.attendance(office_id, work_date desc);
+
+alter table public.companies enable row level security;
+alter table public.offices enable row level security;
+alter table public.profiles enable row level security;
+alter table public.attendance enable row level security;
+alter table public.attendance_corrections enable row level security;
+alter table public.leave_requests enable row level security;
+
+create or replace function public.is_company_admin(target_company uuid)
+returns boolean language sql stable security definer set search_path = public
+as $$ select exists (select 1 from public.profiles where id = auth.uid() and company_id = target_company and role in ('founder','admin') and active = true); $$;
+
+create policy "authenticated users can create companies" on public.companies for insert to authenticated with check (true);
+create policy "members can view their company" on public.companies for select to authenticated using (exists (select 1 from public.profiles p where p.company_id = id and p.id = auth.uid()));
+create policy "company admins manage offices" on public.offices for all to authenticated using (public.is_company_admin(company_id)) with check (public.is_company_admin(company_id));
+create policy "users can view company profiles" on public.profiles for select to authenticated using (company_id = (select p.company_id from public.profiles p where p.id = auth.uid()));
+create policy "users can create their founder profile" on public.profiles for insert to authenticated with check (id = auth.uid() and role = 'founder');
+create policy "company admins manage profiles" on public.profiles for update to authenticated using (public.is_company_admin(company_id)) with check (public.is_company_admin(company_id));
+create policy "employees manage own attendance" on public.attendance for all to authenticated using (employee_id = auth.uid() or public.is_company_admin((select company_id from public.profiles where id = employee_id))) with check (employee_id = auth.uid());
+create policy "employees manage own corrections" on public.attendance_corrections for all to authenticated using (requested_by = auth.uid() or public.is_company_admin((select company_id from public.profiles where id = requested_by))) with check (requested_by = auth.uid());
+create policy "employees manage own leave" on public.leave_requests for all to authenticated using (employee_id = auth.uid() or public.is_company_admin((select company_id from public.profiles where id = employee_id))) with check (employee_id = auth.uid());
