@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 type Profile = { id: string; company_id: string; office_id: string | null; full_name: string; employee_id: string | null; department: string | null; designation: string | null; role: string; active: boolean };
 type Office = { id: string; name: string; address: string | null; latitude: number | null; longitude: number | null; geofence_radius_m: number; geofence_enabled: boolean; work_start: string; work_end: string; grace_minutes: number };
 type Attendance = { id: string; employee_id: string; work_date: string; check_in_at: string | null; check_out_at: string | null; total_working_minutes: number | null; status: string };
+
 const todayIndia = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const time = (value: string | null) => value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
 
@@ -34,10 +35,11 @@ export default function DashboardPage() {
     if (!supabase) { setMessage("Supabase is not configured."); return; }
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { window.location.href = "/"; return; }
-    const { data: p } = await supabase.from("profiles").select("id,company_id,office_id,full_name,employee_id,department,designation,role,active").eq("id", session.user.id).maybeSingle();
-    if (!p) { setMessage("We couldn't load your Loggin profile."); return; }
+    const { data: p, error: profileError } = await supabase.from("profiles").select("id,company_id,office_id,full_name,employee_id,department,designation,role,active").eq("id", session.user.id).maybeSingle();
+    if (profileError || !p) { setMessage(profileError?.message || "We couldn't load your Loggin profile."); return; }
     setProfile(p);
-    const { data: o } = await supabase.from("offices").select("id,name,address,latitude,longitude,geofence_radius_m,geofence_enabled,work_start,work_end,grace_minutes").eq("company_id", p.company_id).order("name");
+    const { data: o, error: officeError } = await supabase.from("offices").select("id,name,address,latitude,longitude,geofence_radius_m,geofence_enabled,work_start,work_end,grace_minutes").eq("company_id", p.company_id).order("name");
+    if (officeError) { setMessage(officeError.message); return; }
     const list = o ?? [];
     setOffices(list);
     setOffice(prev => list.find(x => x.id === prev?.id) ?? list[0] ?? null);
@@ -51,8 +53,8 @@ export default function DashboardPage() {
     setAttendance(a ?? []);
   }
 
-  useEffect(() => { load(); }, []);
-  useEffect(() => { if (office) { setRadius(office.geofence_radius_m || 150); loadOffice(office.id); } }, [office?.id]);
+  useEffect(() => { void load(); }, []);
+  useEffect(() => { if (office) { setRadius(office.geofence_radius_m || 150); void loadOffice(office.id); } }, [office?.id]);
 
   function getLiveLocation() {
     if (!navigator.geolocation) { setMessage("This browser does not support location services."); return; }
@@ -68,47 +70,56 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!supabase || !location) { setMessage("Use your live location before creating the office."); return; }
     setBusy(true); setMessage("");
-    const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch("/api/offices", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` }, body: JSON.stringify({ name: officeName.trim(), address: officeAddress.trim(), latitude: location.lat, longitude: location.lng, geofenceRadiusM: radius, geofenceEnabled: true }) });
-    const result = await response.json();
-    setBusy(false);
-    if (!response.ok) { setMessage(result.error || "Could not create office."); return; }
-    setOfficeName(""); setOfficeAddress(""); setLocation(null); setShowOffice(false); setMessage("Office created."); await load();
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch("/api/offices", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` }, body: JSON.stringify({ name: officeName.trim(), address: officeAddress.trim(), latitude: location.lat, longitude: location.lng, geofenceRadiusM: radius, geofenceEnabled: true }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) { setMessage(result.error || "Could not create office."); return; }
+      setOfficeName(""); setOfficeAddress(""); setLocation(null); setShowOffice(false); setMessage("Office created."); await load();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not create office."); }
+    finally { setBusy(false); }
   }
 
   async function addEmployee(e: FormEvent) {
     e.preventDefault();
     if (!supabase || !office) return;
     setBusy(true); setMessage("");
-    const { data: { session } } = await supabase.auth.getSession();
-    const response = await fetch("/api/employees/invite", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` }, body: JSON.stringify({ fullName: employeeName.trim(), email: employeeEmail.trim().toLowerCase(), employeeId: employeeId.trim() || undefined, officeId: office.id }) });
-    const result = await response.json();
-    setBusy(false);
-    setMessage(response.ok ? "Employee added and invitation sent." : result.error || "Could not add employee.");
-    if (response.ok) { setEmployeeName(""); setEmployeeEmail(""); setEmployeeId(""); setShowEmployee(false); await loadOffice(office.id); }
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const response = await fetch("/api/employees/invite", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` }, body: JSON.stringify({ fullName: employeeName.trim(), email: employeeEmail.trim().toLowerCase(), employeeId: employeeId.trim() || undefined, officeId: office.id }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) { setMessage(result.error || "Could not add employee."); return; }
+      setMessage("Employee added and invitation sent."); setEmployeeName(""); setEmployeeEmail(""); setEmployeeId(""); setShowEmployee(false); await loadOffice(office.id);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not add employee."); }
+    finally { setBusy(false); }
   }
 
   async function importCsv(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !office || !supabase) return;
     setBusy(true); setMessage("");
-    const text = await file.text();
-    const rows = text.split(/\r?\n/).filter(Boolean).map(row => row.split(",").map(value => value.trim().replace(/^"|"$/g, "")));
-    if (rows.length < 2) { setBusy(false); setMessage("CSV is empty."); return; }
-    const headers = rows[0].map(value => value.toLowerCase().replace(/\s+/g, "_"));
-    const find = (names: string[]) => names.map(name => headers.indexOf(name)).find(index => index >= 0) ?? -1;
-    const nameIndex = find(["name", "full_name", "employee_name"]);
-    const emailIndex = find(["email", "work_email"]);
-    const idIndex = find(["employee_id", "id"]);
-    if (nameIndex < 0 || emailIndex < 0) { setBusy(false); setMessage("CSV needs Name and Email columns."); return; }
-    const { data: { session } } = await supabase.auth.getSession();
-    let added = 0;
-    for (const row of rows.slice(1)) {
-      if (!row[nameIndex] || !row[emailIndex]) continue;
-      const response = await fetch("/api/employees/invite", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` }, body: JSON.stringify({ fullName: row[nameIndex], email: row[emailIndex].toLowerCase(), employeeId: idIndex >= 0 ? row[idIndex] : undefined, officeId: office.id }) });
-      if (response.ok) added++;
-    }
-    setBusy(false); setMessage(`${added} employee${added === 1 ? "" : "s"} imported and invited.`); await loadOffice(office.id); e.target.value = "";
+    try {
+      const text = await file.text();
+      const rows = text.split(/\r?\n/).filter(Boolean).map(row => row.split(",").map(value => value.trim().replace(/^"|"$/g, "")));
+      if (rows.length < 2) { setMessage("CSV is empty."); return; }
+      const headers = rows[0].map(value => value.toLowerCase().replace(/\s+/g, "_"));
+      const find = (names: string[]) => names.map(name => headers.indexOf(name)).find(index => index >= 0) ?? -1;
+      const nameIndex = find(["name", "full_name", "employee_name"]);
+      const emailIndex = find(["email", "work_email"]);
+      const idIndex = find(["employee_id", "id"]);
+      if (nameIndex < 0 || emailIndex < 0) { setMessage("CSV needs Name and Email columns."); return; }
+      const { data: { session } } = await supabase.auth.getSession();
+      let added = 0;
+      for (const row of rows.slice(1)) {
+        if (!row[nameIndex] || !row[emailIndex]) continue;
+        const response = await fetch("/api/employees/invite", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token ?? ""}` }, body: JSON.stringify({ fullName: row[nameIndex], email: row[emailIndex].toLowerCase(), employeeId: idIndex >= 0 ? row[idIndex] : undefined, officeId: office.id }) });
+        if (response.ok) added++;
+      }
+      setMessage(`${added} employee${added === 1 ? "" : "s"} imported and invited.`);
+      await loadOffice(office.id);
+      e.target.value = "";
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not import CSV."); }
+    finally { setBusy(false); }
   }
 
   async function signOut() { await supabase?.auth.signOut(); window.location.href = "/"; }
@@ -126,7 +137,7 @@ export default function DashboardPage() {
           <nav className="mt-10 space-y-1">
             <button onClick={() => setView("today")} className={`w-full rounded-lg px-3 py-2 text-left text-sm ${view === "today" ? "bg-[#f2f2ef] font-semibold" : "text-[#777]"}`}>Overview</button>
             <button disabled={!office} onClick={() => setView("people")} className={`w-full rounded-lg px-3 py-2 text-left text-sm ${view === "people" ? "bg-[#f2f2ef] font-semibold" : "text-[#777]"}`}>People</button>
-            <button disabled={!office} onClick={() => setView("attendance")} className={`w-full rounded-lg px-3 py-2 text-left text-sm ${view === "attendance" ? "bg-[#f2f2ef] font-semibold" : "text-[#777]`}>Attendance</button>
+            <button disabled={!office} onClick={() => setView("attendance")} className={`w-full rounded-lg px-3 py-2 text-left text-sm ${view === "attendance" ? "bg-[#f2f2ef] font-semibold" : "text-[#777]"}`}>Attendance</button>
           </nav>
           <div className="mt-9">
             <div className="mb-2 flex items-center justify-between px-3"><p className="text-[11px] font-semibold uppercase tracking-widest text-[#aaa]">Offices</p><button onClick={() => setShowOffice(true)} className="text-lg text-[#777]">+</button></div>
