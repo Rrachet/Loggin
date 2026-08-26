@@ -3,9 +3,11 @@
 
 alter table public.offices
   add column if not exists geofence_enabled boolean not null default false,
-  add column if not exists qr_enabled boolean not null default true;
+  add column if not exists qr_enabled boolean not null default true,
+  add column if not exists archived_at timestamptz null;
 
 create index if not exists offices_location_idx on public.offices(latitude, longitude);
+create index if not exists offices_company_archived_idx on public.offices(company_id, archived_at, name);
 
 -- Create a company + founder profile automatically when a person signs up.
 -- Invited employees reuse the company/office/role metadata supplied by the inviter.
