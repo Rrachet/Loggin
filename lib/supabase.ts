@@ -1,7 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+const supabaseKey = (
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
+);
 
 function validHttpUrl(value: string | undefined) {
   if (!value) return false;
@@ -13,10 +16,10 @@ function validHttpUrl(value: string | undefined) {
   }
 }
 
-export const supabase = validHttpUrl(supabaseUrl) && supabaseAnonKey
-  ? createClient(supabaseUrl!, supabaseAnonKey)
+export const supabase = validHttpUrl(supabaseUrl) && supabaseKey
+  ? createClient(supabaseUrl!, supabaseKey)
   : null;
 
 export const supabaseConfigError = !supabase
-  ? "Supabase is not configured. Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to .env.local, then restart the dev server."
+  ? "Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your environment."
   : null;
