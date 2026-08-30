@@ -1,10 +1,39 @@
 # Loggin
 
-**Your company, right now.**
+> **Full-stack attendance application demonstrating authentication, authorization, configuration and secure data access.**
 
-Founder-first attendance for modern teams.
+Loggin is a supporting application project focused on the operational concerns around a production-style system: user roles, configuration, authentication, database permissions, server-side validation and secure handling of secrets.
 
-## Start locally
+## Engineering signals
+
+- Supabase Auth with real user accounts
+- Founder, admin, manager and employee roles
+- PostgreSQL + Row Level Security
+- Office assignment and geofencing
+- Server-side attendance validation
+- Signed QR-code workflow
+- Environment-based configuration
+- Secure handling of service-role credentials
+
+## Operational troubleshooting scenarios
+
+```text
+Authentication problem
+      ↓
+Check account / Auth configuration
+      ↓
+Check application configuration
+      ↓
+Check database / RLS behaviour
+      ↓
+Validate server-side request
+      ↓
+Resolve or escalate
+```
+
+Typical investigation areas include authentication failures, redirect configuration, database permissions, environment variables, geofence behaviour and role/permission issues.
+
+## Local setup
 
 ```bash
 npm install
@@ -12,61 +41,18 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:3000`.
-
-## Supabase setup
-
-1. Create a Supabase project.
-2. Run `supabase/schema.sql` in the SQL editor.
-3. Run `supabase/production.sql` once. It adds the production signup trigger, geofence flags, and attendance permissions.
-4. Add these values to `.env.local`:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-QR_SIGNING_SECRET=
-```
-
-The service-role key and QR signing secret are server-only. Never expose them in browser code or commit them to Git.
-
-### Supabase Auth
-
-Enable Email/Password authentication. If email confirmation is enabled, new users receive a confirmation email and are sent back to `/dashboard`. If confirmation is disabled for a trusted internal deployment, users can sign up and enter the dashboard immediately.
-
-For production email delivery, configure Supabase Auth SMTP and add your deployed app URL to the Auth redirect URL allow-list.
-
-## Product flow
-
-### Founder
-
-1. Open `/signup`.
-2. Create a real account with name, company, email and password.
-3. Sign in at `/`.
-4. Create an office from a device physically at that office. Loggin captures its location and enables the geofence.
-5. Invite employees. Each employee receives an email and creates their own password.
-6. Display the daily office QR from `/office-qr` if QR attendance is desired.
-
-### Employee
-
-1. Open the invitation email.
-2. Set a personal password at `/set-password`.
-3. Log in at `/`.
-4. Press **Check in** at the start of the day and **Check out** when leaving.
-5. Loggin records the date, time, status, location and working duration.
-
-## Attendance
-
-- Real Supabase Auth accounts — no demo users or seed data.
-- Founder, admin, manager and employee roles.
-- Office assignment and office geofencing.
-- Check-in and check-out with server-side validation.
-- Late detection using office start time + grace period.
-- Daily attendance history.
-- Founder/admin team attendance pulse.
-- Signed daily QR codes as an optional secure check-in method.
-- Row Level Security for company isolation.
+Configure Supabase using the documented SQL files and environment variables. Service-role credentials and QR signing secrets must remain server-only.
 
 ## Security
 
-Attendance writes are validated on the server with the authenticated Supabase user. The service-role key is never sent to the browser. Company and employee profiles are created by a database trigger from the authenticated signup/invitation metadata, preventing the browser from manufacturing founder/admin identities.
+Attendance writes are validated on the server with the authenticated Supabase user. Company isolation is enforced through Row Level Security, and privileged credentials are not sent to the browser.
+
+## Portfolio role
+
+**SUPPORTING ENGINEERING — authentication, configuration and security**
+
+Loggin adds depth to the IBM application-support profile by demonstrating the configuration and access-control issues that can appear in real applications.
+
+## License
+
+MIT
